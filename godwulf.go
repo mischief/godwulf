@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"net"
 	"flag"
+	"sort"
 	"bytes"
 	"strings"
 )
 
 var addr *string = flag.String("address", "127.0.0.1:70", "Specify address to bind to in format '0.0.0.0:70'")
-var path *string = flag.String("path", ".", "Specify path to serve, in format '/path/to/serve' (NO TRAILING '/')")
-var host *string = flag.String("host", *addr, "Specify hostname/address to generate links with in format 'xxx.xxx.xxx.xxx:70'")
+var path *string = flag.String("path", ".", "Specify path to serve, in format '/path/to/serve'")
+var host *string = flag.String("host", *addr, "Specify hostname/address to generate links with in format 'xxx.xxx.xxx.xxx:70' (defaults to -address)")
 
 func servefile(c net.Conn, path string) {
 	if file, err := os.Open(path, os.O_RDONLY, 0); err != nil {
@@ -46,23 +47,26 @@ func servefile(c net.Conn, path string) {
 	}
 }
 
-func filetype(name string) fype string {
+func filetype(name string) (ftype string) {
 	if file, err := os.Stat(name); err != nil {
 		fmt.Fprintf(os.Stderr, "Error stating file %s: %s", name, err.String())
-		return nil
+		ftype = "3"
 	} else {
 		if file.IsDirectory() {
-			return "1"
+			ftype = "1"
 		} else if strings.HasSuffix(name, ".jpg") || strings.HasSuffix(name, ".png") {
-			return "I"
+			ftype = "I"
 		} else if strings.HasSuffix(name, ".gif") {
-			return "g"
+			ftype = "g"
+		} else if strings.HasSuffix(name, ".flac") || strings.HasSuffix(name, ".mp3") || strings.HasSuffix(name, ".ogg") || strings.HasSuffix(name, ".wav") {
+			ftype = "s"
 		} else if file.IsRegular() {
-			return "0"
+			ftype = "0"
 		} else {
-			return "3"	// error
+			ftype = "3"
 		}
 	}
+	return ftype
 }
 
 func servedir(c net.Conn, path, host, port, reldir string) {
@@ -71,6 +75,7 @@ func servedir(c net.Conn, path, host, port, reldir string) {
 		return
 	} else {
 		indexfile := fmt.Sprintf("%s/.index", path)
+		fmt.Printf("indexfile: %s\n", indexfile)
 		if _, err := os.Stat(indexfile); err == nil {
 			servefile(c, indexfile)
 		} else {
@@ -78,6 +83,7 @@ func servedir(c net.Conn, path, host, port, reldir string) {
 				fmt.Fprintf(os.Stderr, "Error reading directory: %s\n", err.String())
 				return
 			} else {
+				sort.SortStrings(names)
 				for i := 0; i < len(names); i++ {
 					ftype := filetype(fmt.Sprintf("%s/%s", path, names[i]))
 					item := fmt.Sprintf("%s%s\t%s/%s\t%s\t%s\r\n", ftype, names[i], reldir, names[i], host, port)
@@ -106,7 +112,7 @@ func serve(c net.Conn, host string, port string) {
 				break
 			}
 		}
-		file := fmt.Sprintf("%s%s", *path, selector.String())
+		file := fmt.Sprintf("./%s", selector.String())
 		fmt.Printf("selector: '%s'\n", selector.String())
 		fmt.Printf("requested: '%s'\n", file)
 
@@ -129,35 +135,6 @@ func serve(c net.Conn, host string, port string) {
 		if err := c.Close(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error closing TCP connection: %s\n", err.String())
 		}
-
-		/*if selector.String() == "" {
-			one := strings.Bytes("iWelcome to godwulf!\r\n")
-			two := strings.Bytes(fmt.Sprintf("0About my gopher server\t/about\t%s\t%s\r\n1A directory!\t/dir\t%s\t%s\r\n.\r\n", host, port, host, port))
-			msg := bytes.Add(one, two)
-			if _, err := c.Write(msg); err != nil {
-				fmt.Fprintf(os.Stderr, "Error writing to TCP connection: %s\n", err.String())
-			}
-			if err := c.Close(); err != nil {
-				fmt.Fprintf(os.Stderr, "Error closing TCP connection: %s\n", err.String())
-			}
-		} else if selector.String() == "/about" {
-			msg := strings.Bytes("This is my gopher server, godwulf! It's just in development right now, \r\nso don't worry if stuff doesn't work too well.\r\n.\r\n")
-			if _, err := c.Write(msg); err != nil {
-				fmt.Fprintf(os.Stderr, "Error writing to TCP connection: %s\n", err.String())
-			}
-			if err := c.Close(); err != nil {
-				fmt.Fprintf(os.Stderr, "Error closing TCP connection: %s\n", err.String())
-			}
-		} else if selector.String() == "/dir" {
-			servedir(requested)
-		} else {
-			if _, err := c.Write(strings.Bytes("Error!\r\n.\r\n")); err != nil {
-				fmt.Fprintf(os.Stderr, "Error writing to TCP connection: %s\n", err.String())
-			}
-			if err := c.Close(); err != nil {
-				fmt.Fprintf(os.Stderr, "Error closing TCP connection: %s\n", err.String())
-			}
-		}*/
 	}
 }
 
