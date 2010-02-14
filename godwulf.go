@@ -158,9 +158,7 @@ func main() {
 				fmt.Fprintf(os.Stderr, "Error opening TCP connection: %s\n", err.String())
 				os.Exit(1)
 			} else {
-				r := c.RemoteAddr()
-				l := c.LocalAddr()
-				fmt.Printf("New connection (%s) with %s\n", l.String(), r.String())
+				fmt.Printf("New connection (%s) with %s\n", c.LocalAddr().String(), c.RemoteAddr().String())
 				go serve(c, address[0], address[1])
 			}
 		}
